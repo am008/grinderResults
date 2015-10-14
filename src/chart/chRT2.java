@@ -1,11 +1,10 @@
 package chart;
+
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.io.File;
 import java.io.FileReader;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -23,85 +22,94 @@ import org.json.simple.parser.JSONParser;
 
 public class chRT2 {
 
-	public static int jsonextract(String fileName) {
-		int c = 0;
-		try {
+  public static int jsonextract(String fileName) {
+    int c = 0;
+    try {
 
-			String fullFileName = fileName + ".json";
+      JSONParser parser = new JSONParser();
+      Object obj = parser.parse(new FileReader(fileName));
+      JSONObject jsonObject = (JSONObject) obj;
+      JSONArray results = (JSONArray) jsonObject.get("results");
+      Iterator<?> iterator = results.iterator();
 
-			JSONParser parser = new JSONParser();
-			Object obj = parser.parse(new FileReader(fullFileName));
-			JSONObject jsonObject = (JSONObject) obj;
+      while (iterator.hasNext()) {
+        JSONObject innerobj = (JSONObject) iterator.next();
+        JSONArray sub = (JSONArray) innerobj.get("subtests");
+        Iterator<JSONObject> i = sub.iterator();
+        while (i.hasNext()) {
+          JSONObject in = (JSONObject) i.next();
+          String st = (String) in.get("status");
 
-			JSONArray results = (JSONArray) jsonObject.get("results");
-			Iterator<?> iterator = results.iterator();
+          if (st.contains("FAIL")) {
+            c++;
+          }
+        }
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+    return c;
+  }
 
-			while (iterator.hasNext()) {
-				JSONObject innerobj = (JSONObject) iterator.next();
-				JSONArray sub = (JSONArray) innerobj.get("subtests");
-				Iterator<JSONObject> i = sub.iterator();
-				JSONObject in = (JSONObject) i.next();
-				String st = (String) in.get("status");
+  public static void main(String[] args) throws Exception {
 
-				if (st.contains("FAIL")) {
-					c++;
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return c;
-	}
+    JFreeChart xylineChart = ChartFactory.createXYLineChart(
+        "Browser Test Results", "Tests Conducted", "Tests Failed",
+        collection(), PlotOrientation.VERTICAL, true, true,
+        false);
+    System.out.println("Creating chart");
 
-	public static void main(String[] args) throws Exception {
-		int numFiles;
-		List<String> br = new ArrayList<>();
+    ChartPanel chartPanel = new ChartPanel(xylineChart);
+    chartPanel.setPreferredSize(new java.awt.Dimension(600, 600));
+    final XYPlot plot = xylineChart.getXYPlot();
+    XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer();
+    renderer.setSeriesPaint(0, Color.RED);
+    renderer.setSeriesPaint(1, Color.GREEN);
+    renderer.setSeriesPaint(2, Color.YELLOW);
+    renderer.setSeriesStroke(0, new BasicStroke(4.0f));
+    renderer.setSeriesStroke(1, new BasicStroke(3.0f));
+    renderer.setSeriesStroke(2, new BasicStroke(2.0f));
+    plot.setRenderer(renderer);
+    File XYLine = new File("Chart2.PNG");
+    System.out.println("Saving to Chart2.png");
+    ChartUtilities.saveChartAsPNG(XYLine, xylineChart, 500, 500);
+    System.out.println("Done");
 
-		numFiles = 2;
-		br.add("gngr");
-		br.add("mozilla");
+  }
 
-		JFreeChart xylineChart = ChartFactory.createXYLineChart(
-				"Browser Test Results", "Tests Conducted", "Tests Failed",
-				collection(br, numFiles), PlotOrientation.VERTICAL, true, true,
-				false);
-		System.out.println("Creating chart");
+  public static XYDataset collection() throws Exception {
+    final XYSeriesCollection dataset = new XYSeriesCollection();
 
-		ChartPanel chartPanel = new ChartPanel(xylineChart);
-		chartPanel.setPreferredSize(new java.awt.Dimension(600, 600));
-		final XYPlot plot = xylineChart.getXYPlot();
-		XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer();
-		renderer.setSeriesPaint(0, Color.RED);
-		renderer.setSeriesPaint(1, Color.GREEN);
-		renderer.setSeriesPaint(2, Color.YELLOW);
-		renderer.setSeriesStroke(0, new BasicStroke(4.0f));
-		renderer.setSeriesStroke(1, new BasicStroke(3.0f));
-		renderer.setSeriesStroke(2, new BasicStroke(2.0f));
-		plot.setRenderer(renderer);
-		File XYLine = new File("Chart2.PNG");
-		System.out.println("Saving to Chart2.png");
-		ChartUtilities.saveChartAsPNG(XYLine, xylineChart, 500, 500);
-		System.out.println("Done");
+    try {
+      JSONParser parser = new JSONParser();
+      JSONArray readfile = (JSONArray) parser.parse(new FileReader("config.json"));
 
-	}
+      for (Object o : readfile) {
+        JSONObject browser = (JSONObject) o;
+        String browsername = (String) browser.get("name");
+        System.out.println("Processing: " + browsername);
+        JSONArray files = (JSONArray) browser.get("files");
 
-	public static XYDataset collection(List<String> browsers, int numFiles) {
-		final XYSeriesCollection dataset = new XYSeriesCollection();
-		for (String browser : browsers) {
-			System.out.println("Processing: " + browser);
-			dataset.addSeries(series(browser, numFiles));
-		}
+        final XYSeries dat = new XYSeries(browsername);
 
-		return dataset;
-	}
+        int i = 1;
+        for (Object f : files) {
+          //System.out.println(filename);
+          String filename = (String) f.toString();
+          System.out.println(filename);
 
-	public static XYSeries series(String browserName, int numFiles) {
-		final XYSeries dat = new XYSeries(browserName);
-		for (int k = 1; k < numFiles + 1; k++) {
-			dat.add(k, jsonextract(browserName + k));
-		}
+          dat.add(i, jsonextract(filename));
+          i++;
+        }
 
-		return dat;
-	}
+        dataset.addSeries(dat);
+      }
+
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    return dataset;
+  }
 
 }
