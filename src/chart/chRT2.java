@@ -4,8 +4,9 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.io.File;
 import java.io.FileReader;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -24,8 +25,8 @@ import org.json.simple.parser.JSONParser;
 
 public class chRT2 {
 
-  public static int jsonextract(final String fileName) {
-    int c = 0;
+  public static int webPlatformParse(final String fileName) {
+    int count = 0;
     try {
       final JSONParser parser = new JSONParser();
       final Object obj = parser.parse(new FileReader(fileName));
@@ -42,18 +43,18 @@ public class chRT2 {
           final String st = (String) in.get("status");
 
           if (st.contains("FAIL")) {
-            c++;
+            count++;
           }
         }
       }
     } catch (final Exception e) {
       e.printStackTrace();
     }
-    return c;
+    return count;
   }
   
   
-  public static int grinderExtract(final String filename){
+  public static int grinderParse(final String filename){
     int count=0;
     try{
       final JSONParser parser = new JSONParser();
@@ -76,26 +77,25 @@ public class chRT2 {
     }
     return count;
   }
+  
 
   public static void main(final String[] args) throws Exception {
-
     final JFreeChart xylineChart = ChartFactory.createXYLineChart(
         "Web-Platform Test Results", "Tests Conducted", "Tests Failed",
-        collection(), PlotOrientation.VERTICAL, true, true,
+        configParser("web-platform-files"), PlotOrientation.VERTICAL, true, true,
         false);
     
     final JFreeChart grinderChart = ChartFactory.createXYLineChart(
         "Grinder Test Results", "Tests Conducted", "Tests Failed",
-        collection2(), PlotOrientation.VERTICAL, true, true,
+        configParser("grinder-files"), PlotOrientation.VERTICAL, true, true,
         false);
     
-    System.out.println("Creating charts");
+    System.out.println("\n*********Creating charts*********");
     
     System.out.println("Creating web-platform test chart");
     exportChart(xylineChart,"Chart1.PNG");
-    System.out.println("Creating grinder test chart");
+    System.out.println("\nCreating grinder test chart");
     exportChart(grinderChart,"Chart2.PNG");
-
   }
   
   
@@ -124,11 +124,13 @@ public class chRT2 {
   }
   
 
-  public static XYDataset collection() throws Exception {
-    final XYSeriesCollection dataset = new XYSeriesCollection();
-   
+  public static XYDataset configParser(String testName){
+    List<Integer> ResultList;
+    XYSeries newSeries;
+    final XYSeriesCollection dataSet = new XYSeriesCollection();
+    
     try {
-      System.out.println("Processing Web platform Results");
+      System.out.println("\nProcessing "+ testName +" test Results");
       final JSONParser parser = new JSONParser();
       final JSONArray readfile = (JSONArray) parser.parse(new FileReader("config.json"));
 
@@ -136,60 +138,43 @@ public class chRT2 {
         final JSONObject browser = (JSONObject) o;
         final String browsername = (String) browser.get("name");
         System.out.println("Processing: " + browsername);
-        final JSONArray files = (JSONArray) browser.get("web-platform-files"); 
-
-        final XYSeries dat = new XYSeries(browsername);
+        
+        final JSONArray TestArrayFiles = (JSONArray) browser.get(testName);
       
-        int i = 1;
-        for (final Object f : files) {
-          final String filename = (String) f.toString();
-          dat.add(i, jsonextract(filename));
-          i++;
-        }
-        dataset.addSeries(dat);
-      }
-      System.out.println("\n");
-      
-    } catch (final Exception e) {
+        ResultList = jsonTestFileResult(TestArrayFiles,testName);
+        newSeries = createSeries(ResultList,browsername);
+        dataSet.addSeries(newSeries);
+     }
+    }catch(final Exception e){
       e.printStackTrace();
     }
-
-    return dataset;
-  
+    return dataSet;
   }
+    
   
-   
-  public static XYDataset collection2() throws Exception {
-    final XYSeriesCollection grdataset = new XYSeriesCollection();
+  public static List<Integer> jsonTestFileResult(JSONArray TestArrayFiles,String testName){
+   List<Integer> testResults = new ArrayList<>();
+     
+   for(final Object o : TestArrayFiles){     
+     final String Filename = (String) o.toString();
+     if(testName == "web-platform-files")
+        testResults.add(webPlatformParse(Filename));
+     else
+       testResults.add(grinderParse(Filename));
+   }
+   return testResults;
+  } 
   
-    try {
-      System.out.println("Processing grinder test Results");
-      final JSONParser parser = new JSONParser();
-      final JSONArray readfile = (JSONArray) parser.parse(new FileReader("config.json"));
-
-      for (final Object o : readfile) {
-        final JSONObject browser = (JSONObject) o;
-        final String browsername = (String) browser.get("name");
-        System.out.println("Processing: " + browsername);
-       
-        final JSONArray grinderFiles = (JSONArray) browser.get("grinder-files");
-
-        final XYSeries grinder = new XYSeries(browsername);
-
-        int i=1;
-        for(final Object g : grinderFiles){
-          final String grinderFilename = (String) g.toString(); 
-          grinder.add(i,grinderExtract(grinderFilename));
-          i++;
-        }
-        grdataset.addSeries(grinder);
-      }
-        System.out.println("\n");
-    } catch (final Exception e) {
-      e.printStackTrace();
+  
+  public static XYSeries createSeries(List<Integer> ResultList,String browsername){
+    final XYSeries Series = new XYSeries(browsername);
+    
+    int i=1;
+    for(int result : ResultList){
+      Series.add(i,result);
+      i++;
     }
-
-    return grdataset;
+    return Series;
   }
- 
+  
 }
